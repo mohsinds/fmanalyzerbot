@@ -1,0 +1,40 @@
+image: python:3.11-slim
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Deploy FMAnalyzerBot (Production)
+          deployment: production
+          script:
+            # Install dependencies
+            - apt-get update && apt-get install -y rsync openssh-client
+
+            # Setup SSH directory
+            - mkdir -p ~/.ssh
+            - chmod 700 ~/.ssh
+
+            # Disable strict host checking
+            - |
+              cat > ~/.ssh/config <<'EOF'
+              Host *
+                StrictHostKeyChecking no
+                UserKnownHostsFile /dev/null
+                LogLevel ERROR
+              EOF
+            - chmod 600 ~/.ssh/config
+
+            # Sync code to server (Bitbucket's key is already ready to use)
+            - rsync -avz --delete
+                --exclude '.git'
+                --exclude '.idea'
+                --exclude '__pycache__'
+                --exclude '.env'
+                --exclude '.venv'
+                --exclude '*.pyc'
+                --exclude '.pytest_cache'
+                -e "ssh -i $BITBUCKET_SSH_KEY_FILE -p 22618"
+                ./ deploy@178.156.142.52:/opt/fmab/
+
+            # Execute deployment script
+            - ssh -i $BITBUCKET_SSH_KEY_FILE -p 22618 deploy@178.156.142.52 "bash /opt/fmab/deploy/deploy.sh"
